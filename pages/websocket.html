@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Assignment 3 - Websocket</title>
+
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/odometer@0.4.8/themes/odometer-theme-default.css"
+			integrity="sha256-Dt1y3ENkbkWd3zN47Ny+RSf7Wj5aFzL6zsVmnE5G6VI="
+			crossorigin="anonymous"
+		/>
+		<script
+			defer
+			src="https://cdn.jsdelivr.net/npm/odometer@0.4.8/odometer.min.js"
+			integrity="sha256-65R1G5irU1VT+k8L4coqgd3saSvO/Wufson/w+v2Idw="
+			crossorigin="anonymous"
+		></script>
+
+		<script
+			defer
+			src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.3/gsap.min.js"
+		></script>
+
+		<style>
+			body {
+				margin: 0;
+				padding: 0;
+				box-sizing: border-box;
+				width: 100%;
+				font-family: "Courier New", Courier, monospace;
+			}
+
+			.status-container {
+				width: 100%;
+				height: 100vh;
+				background-color: #636e72;
+				display: flex;
+				flex-direction: column;
+			}
+
+			.status-desc {
+				flex: 1;
+				align-items: center;
+				justify-content: center;
+				text-align: center;
+				display: flex;
+				flex-direction: column;
+			}
+
+			.desc-container {
+				display: flex;
+				flex-direction: column;
+				padding: 2em;
+				border-radius: 2em;
+				background-color: rgba(255, 255, 255, 0.3);
+				min-width: 15em;
+			}
+
+			.icon-desc {
+				font-size: 2em;
+			}
+
+			.number-desc {
+				font-size: 3.2em;
+			}
+
+			.unit-desc {
+				font-size: 2em;
+				font-weight: bold;
+			}
+
+			.text-desc {
+				font-size: 2.2em;
+				font-weight: bold;
+				padding: 0.1em;
+				border-radius: 0.4em;
+				background-color: rgba(255, 255, 255, 0.2);
+				margin-top: 0.8em;
+			}
+
+			.info-container {
+				position: absolute;
+				font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+				font-weight: bold;
+				top: 10px;
+				left: 10px;
+				padding: 0.4em;
+				border-radius: 0.4em;
+				background-color: rgba(255, 255, 255, 0.6);
+				display: flex;
+				flex-direction: column;
+			}
+
+			.creator-container {
+				position: absolute;
+				font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+				font-weight: bold;
+				top: 10px;
+				right: 10px;
+				padding: 0.4em;
+				border-radius: 0.4em;
+				background-color: rgba(255, 255, 255, 0.2);
+			}
+
+			.creator-container span a {
+				text-decoration: none;
+				color: black;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="info-container">
+			<span>Type: Websocket</span>
+			<span>Status: <span id="ws-status"></span></span>
+		</div>
+
+		<div class="status-container">
+			<div id="water" class="status-desc">
+				<div class="desc-container">
+					<span class="icon-desc">🌊 <b>Water</b></span>
+					<span class="number-desc">0</span>
+					<span class="unit-desc">meter</span>
+					<span class="text-desc">...</span>
+				</div>
+			</div>
+			<div id="wind" class="status-desc">
+				<div class="desc-container">
+					<span class="icon-desc">💨 <b>Wind</b></span>
+					<span class="number-desc">0</span>
+					<span class="unit-desc">meter/detik</span>
+					<span class="text-desc">...</span>
+				</div>
+			</div>
+		</div>
+
+		<div class="creator-container">
+			<span>
+				<a
+					href="https://github.com/alfiras/hacktiv8-golang-assignment-3"
+					target="_blank"
+					>💻 Alfiras</a
+				>
+			</span>
+		</div>
+
+		<script defer type="text/javascript">
+			const Helper = {
+				getElementDesc: function (id) {
+					const el = document.getElementById(id);
+					if (!el) return undefined;
+					const output = {
+						el: el,
+						descContainer: el.querySelector(".desc-container"),
+						number: el.querySelector(".number-desc"),
+						text: el.querySelector(".text-desc"),
+					};
+					output.odo = this.toOdometer(output.number, 0);
+					return output;
+				},
+				toOdometer: function (el, initialValue = 0) {
+					return new Odometer({
+						el: el,
+						value: initialValue,
+						format: "d",
+					});
+				},
+				lessThanValue: function (a, b) {
+					return a <= b;
+				},
+				greaterThanValue: function (a, b) {
+					return a >= b;
+				},
+				betweenValue: function (a, b1, b2) {
+					return a >= b1 && a <= b2;
+				},
+				injectSetValue: function (el, onChange) {
+					el.setValue = function (value) {
+						this.textContent = value;
+						onChange(value);
+					};
+					return el;
+				},
+			};
+
+			const Config = {
+				api: {
+					url: "localhost:9999/",
+				},
+				constant: {
+					SAFE: {
+						text: "aman",
+						bgColor: "rgba(0, 210, 211, 0.3)",
+					},
+					WARNING: {
+						text: "siaga",
+						bgColor: "rgba(253, 203, 110, 0.3)",
+					},
+					DANGER: {
+						text: "bahaya",
+						bgColor: "rgba(214, 48, 49, 0.3)",
+					},
+				},
+				infoStatus: {
+					condition: {
+						water: function (value) {
+							value = parseInt(value);
+							if (Helper.lessThanValue(value, 5)) return Config.constant.SAFE;
+							if (Helper.betweenValue(value, 6, 8))
+								return Config.constant.WARNING;
+							if (Helper.greaterThanValue(value, 8))
+								return Config.constant.DANGER;
+						},
+						wind: function (value) {
+							value = parseInt(value);
+							if (Helper.lessThanValue(value, 6)) return Config.constant.SAFE;
+							if (Helper.betweenValue(value, 7, 15))
+								return Config.constant.WARNING;
+							if (Helper.greaterThanValue(value, 15))
+								return Config.constant.DANGER;
+						},
+					},
+				},
+			};
+
+			const API = ({ url, append }) => {
+				if (!window.WebSocket) return alert("Browser not support websocket");
+				const ws = new WebSocket(`ws://${url}`);
+				ws.onopen = function (e) {
+					document.getElementById("ws-status").textContent = "Connected";
+				};
+				ws.onclose = function (e) {
+					document.getElementById("ws-status").textContent = "Disconnected";
+					append.water.number.setValue("-");
+					append.wind.number.setValue("-");
+				};
+				ws.onmessage = function (e) {
+					const data = JSON.parse(e.data);
+					append.water.number.setValue(data.status.water);
+					append.wind.number.setValue(data.status.wind);
+				};
+			};
+
+			window.addEventListener("DOMContentLoaded", () => {
+				const water = Helper.getElementDesc("water");
+				const wind = Helper.getElementDesc("wind");
+
+				Helper.injectSetValue(water.number, (value) => {
+					if (value == "-") {
+						water.text.textContent = "-";
+						gsap.to(water.el, {
+							backgroundColor: "rgba(255, 255, 255, 0.3)",
+						});
+						return;
+					}
+					const info = Config.infoStatus.condition.water(value);
+					water.text.textContent = info.text.toUpperCase();
+					gsap.to(water.el, {
+						backgroundColor: info.bgColor,
+					});
+				});
+
+				Helper.injectSetValue(wind.number, (value) => {
+					if (value == "-") {
+						wind.text.textContent = "-";
+						gsap.to(wind.el, {
+							backgroundColor: "rgba(255, 255, 255, 0.3)",
+						});
+						return;
+					}
+					const info = Config.infoStatus.condition.wind(value);
+					wind.text.textContent = info.text.toUpperCase();
+					gsap.to(wind.el, {
+						backgroundColor: info.bgColor,
+					});
+				});
+
+				API({
+					url: Config.api.url + "ws",
+					append: {
+						water,
+						wind,
+					},
+				});
+			});
+		</script>
+	</body>
+</html>
