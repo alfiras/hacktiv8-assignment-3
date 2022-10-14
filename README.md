@@ -14,6 +14,10 @@ Setting for server in `configs/default.go`
 
 #### Websocket
 
+![websocket-auto-update](assets/websocket-auto-update.gif "Websocket Auto Update")
+
+![websocket-3-browser](assets/websocket-3-browser.gif "Websocket in 3 browser")
+
 for realtime i using [Gorilla Websocket](https://github.com/gorilla/websocket).
 
 #### Polling
